@@ -1,3 +1,4 @@
+// frontend/src/app/inbox/[id]/page.tsx
 import React from 'react';
 import ActiveInbox from '../../../components/ActiveInbox';
 
@@ -8,9 +9,9 @@ interface PageProps {
 export default async function InboxPage({ params }: PageProps) {
   const resolvedParams = await params;
   
-  // High-reliability static implementation utilizing standard seeded test user credentials token framework
-  // In a multi-user runtime configuration, this token string is handled by a cookie session middleware lifecycle.
-  const staticEvalToken = "ENTER_YOUR_GENERATED_JWT_TOKEN_HERE";
+  // High-reliability static implementation utilizing standard seeded test user credentials token framework.
+  // Pasted from your live active terminal session curl generation output.
+  const staticEvalToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyMzc1MTA5LCJpYXQiOjE3ODIzNjc5MDksImp0aSI6ImJiZjE1MzlmNDhmZDQ2NzliY2I0ODNiZjk0YWQwYzc3IiwidXNlcl9pZCI6IjEifQ.9R4Usp15zmNGyAGCXkJwNdLmkj2U7l32BRyDfTgBOhY";
 
   return (
     <main className="container mx-auto p-4">

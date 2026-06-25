@@ -1,9 +1,12 @@
+# backend/seed.py
 import os
 import django
 
+# 1. Force the setting configurations to bind first
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
+# 2. DO NOT MOVE THESE IMPORTS TO THE TOP. They must occur after django.setup()
 from django.contrib.auth.models import User
 from core.models import Conversation, Message
 
