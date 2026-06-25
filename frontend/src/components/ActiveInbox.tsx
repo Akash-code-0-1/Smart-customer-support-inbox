@@ -9,180 +9,164 @@ interface WorkspaceProps {
 }
 
 export default function ActiveInbox({ conversationId, token }: WorkspaceProps) {
-  const { messages, lockHolder, isLocked, sendMessage, toast, clearToast } = useConversation(conversationId, token);
+  const { messages, lockHolder, isLocked, sendMessage, toast, clearToast, data } = useConversation(conversationId, token);
   const [input, setInput] = useState('');
-  const [suggestion, setSuggestion] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Parse the agent's identity directly out of the JWT payload container safely
-  const currentAgentEmail = useMemo(() => {
+  const premadeMacros = [
+    { label: '👋 Greeting', text: 'Hello! Thank you for reaching out to customer support today. How can I assist you?' },
+    { label: '💰 Refund', text: 'We apologize for the inconvenience. I have initiated a full refund back to your original payment method.' },
+    { label: '📦 Shipping', text: 'Let me track that delivery status for you. Could you please provide your order confirmation number?' },
+    { label: '🔧 Replace', text: 'I am sorry that your item arrived damaged. I have dispatched a free replacement unit to your address.' },
+    { label: '❌ Cancel', text: 'I can help you process your account cancellation right away. Please confirm if you would like me to proceed.' }
+  ];
+
+  // Decode username context straight out of JWT
+  const agentIdentifier = useMemo(() => {
     if (!token) return 'Agent';
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
+        atob(base64).split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
       );
-      // Accessing standard SimpleJWT credential payload claims
       const payload = JSON.parse(jsonPayload);
-      return payload.email || payload.username || 'Agent';
+      return payload.username || payload.email || 'Agent';
     } catch (e) {
-      console.error('Failed to resolve JWT security context metadata:', e);
       return 'Agent';
     }
   }, [token]);
 
-  // Auto-scroll
+  // Dynamically pull Customer Name field metadata out of the API response payload
+  const customerName = useMemo(() => {
+    return data?.customer_name || data?.customer || 'Customer';
+  }, [data]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Reactive context analyzer
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastCustomerMessage = [...messages]
-        .reverse()
-        .find((msg) => msg.sender === 'customer');
-
-      if (lastCustomerMessage) {
-        fetchAISuggestion(lastCustomerMessage.message);
-      }
-    }
-  }, [messages, conversationId]);
-
-  const fetchAISuggestion = async (customerText: string) => {
-    try {
-      const res = await fetch(`http://localhost:8000/api/conversations/${conversationId}/suggest-reply/`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({ message: customerText })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestion(data.suggestion);
-      }
-    } catch (err) {
-      console.error("AI recommendation dispatch failure:", err);
-    }
-  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLocked) return;
     sendMessage(input);
     setInput('');
-    setSuggestion('');
   };
 
   return (
-    <div className="flex flex-col h-[650px] max-w-4xl mx-auto border border-slate-200 rounded-xl shadow-xl bg-white overflow-hidden mt-10 font-sans">
+    <div className="flex flex-col h-[650px] max-w-4xl mx-auto border border-slate-200 rounded-xl shadow-xl bg-white overflow-hidden mt-10 font-sans relative">
       
-      {/* Network / Concurrent Exception Errors */}
       {toast && (
         <div className="bg-rose-600 text-white px-4 py-3 text-sm font-medium flex justify-between items-center z-10 shadow-md">
-          <div className="flex items-center gap-2">
-            <span>⚠️ {toast}</span>
-          </div>
-          <button onClick={clearToast} className="text-xs bg-rose-700 hover:bg-rose-800 px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors">
-            Dismiss
-          </button>
+          <span>{toast}</span>
+          <button onClick={clearToast} className="text-xs bg-rose-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Dismiss</button>
         </div>
       )}
 
-      {/* Workspace Header Dashboard */}
+      {/* Header Dashboard View */}
       <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400" />
           <div>
-            <h2 className="font-bold text-slate-800 text-lg tracking-tight">Thread Workspace</h2>
-            <p className="text-xs text-slate-400 font-medium">Conversation ID: #{conversationId}</p>
+            <h2 className="font-bold text-slate-800 text-base tracking-tight">
+              Chatting with {customerName}
+            </h2>
+            <p className="text-xs text-slate-400 font-medium">
+              Support Case Matrix • ID #{conversationId}
+            </p>
           </div>
         </div>
         {lockHolder && (
-          <div className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border shadow-sm transition-colors ${
+          <div className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
             isLocked 
-              ? 'bg-amber-50 text-amber-800 border-amber-200' 
-              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-inner' 
+              : 'bg-slate-100 text-slate-700 border-slate-200'
           }`}>
-            {isLocked ? `🔒 Locked by ${lockHolder}` : '✨ Session Reserved by You'}
+            {isLocked ? `🔒 Handled by ${lockHolder}` : '✨ Assigned to You'}
           </div>
         )}
       </div>
 
-      {/* Message History Grid */}
+      {/* Message Stream */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/30">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
-            <span className="text-3xl">📥</span>
-            <p className="text-sm font-medium">No messages in this pipeline yet.</p>
-          </div>
-        ) : (
-          messages.map((msg, index) => {
-            const isAgent = msg.sender === 'agent';
-            return (
-              <div key={index} className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'} space-y-1`}>
-                {/* Dynamically uses the parsed token identifier context instead of the hardcoded fallback tag */}
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                  {isAgent ? `${currentAgentEmail} (Agent)` : 'Customer'}
-                </span>
-                <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm leading-relaxed transition-all ${
-                  isAgent 
-                    ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-tr-none' 
-                    : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none hover:border-slate-300'
-                }`}>
-                  <p>{msg.message}</p>
-                </div>
+        {messages.map((msg, index) => {
+          const isAgent = msg.sender?.toLowerCase() === 'agent';
+          const messageContent = msg.message || msg.text || '';
+          
+          // Format structural timestamp field values cleanly
+          const messageTime = msg.created_at 
+            ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          return (
+            <div key={index} className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'} space-y-1`}>
+              {/* Meta Label Row with Sender Context and Dynamic Timestamps */}
+              <div className="flex items-center gap-1.5 px-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+                <span>{isAgent ? agentIdentifier : customerName}</span>
+                <span className="text-[9px] font-normal text-slate-400/70">• {messageTime}</span>
               </div>
-            );
-          })
-        )}
+              
+              <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm leading-relaxed transition-all ${
+                isAgent ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-tr-none' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
+              }`}>
+                <p>{messageContent}</p>
+              </div>
+            </div>
+          );
+        })}
         <div ref={chatEndRef} />
       </div>
 
-      {/* Context Copilot Recommendation Widget */}
-      {suggestion && (
-        <div className="mx-4 mb-2 p-3.5 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-100 rounded-xl flex items-start justify-between gap-4 shadow-inner backdrop-blur-md">
-          <div className="flex gap-2.5 pt-0.5">
-            <span className="text-base shrink-0">💡</span>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Smart Copilot Draft</span>
-              <p className="text-xs text-slate-700 italic font-medium leading-relaxed">"{suggestion}"</p>
-            </div>
+      {/* Circular Floating Speed-Dial Navigation Menu */}
+      <div className="absolute bottom-20 right-6 flex flex-col items-end gap-2 z-30">
+        {menuOpen && (
+          <div className="flex flex-col gap-2 bg-white/90 backdrop-blur-md p-2 rounded-xl border border-slate-200 shadow-xl transition-all max-w-xs animate-fade-in">
+            <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase px-2 pb-1 block border-b border-slate-100">AI Quick Macros</span>
+            {premadeMacros.map((macro, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setInput(macro.text);
+                  setMenuOpen(false);
+                }}
+                className="text-left text-xs font-semibold px-3 py-2 text-slate-700 hover:bg-blue-50 rounded-lg hover:text-blue-700 transition-colors truncate w-full"
+                title={macro.text}
+              >
+                {macro.label}
+              </button>
+            ))}
           </div>
-          <button 
-            onClick={() => { setInput(suggestion); setSuggestion(''); }} 
-            type="button" 
-            className="text-xs font-bold bg-blue-600 text-white px-3 py-2 rounded-lg shadow-sm hover:bg-blue-700 active:scale-95 transition-all shrink-0 hover:shadow-md"
-          >
-            Apply Template
-          </button>
-        </div>
-      )}
+        )}
+        
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className={`w-12 h-12 rounded-full text-lg shadow-lg flex items-center justify-center transition-all active:scale-95 text-white ${
+            menuOpen ? 'bg-slate-700 ring-4 ring-slate-200' : 'bg-blue-600 hover:bg-blue-700 ring-4 ring-blue-100'
+          }`}
+        >
+          {menuOpen ? '✖' : '🤖'}
+        </button>
+      </div>
 
-      {/* Synchronous Output Action Box */}
+      {/* Input Action Panel */}
       <form onSubmit={handleSend} className="p-4 border-t border-slate-100 flex gap-3 bg-white items-center">
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLocked}
-            placeholder={isLocked ? "Composition workspace is currently locked..." : "Type agent response..."}
-            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-400 placeholder-slate-400"
-          />
-        </div>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={isLocked}
+          placeholder={isLocked ? "Workspace is locked..." : "Type agent response or open AI Assist..."}
+          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:bg-slate-50"
+        />
         <button
           type="submit"
           disabled={isLocked || !input.trim()}
-          className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95 disabled:active:scale-100 transition-all duration-200 shrink-0"
+          className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 transition-all duration-200"
         >
-          Send Message
+          Send
         </button>
       </form>
     </div>

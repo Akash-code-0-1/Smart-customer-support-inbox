@@ -10,7 +10,6 @@ SECRET_KEY = "django-insecure-eval-key-production-ready-safeguard-12345"
 DEBUG = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "3000"]
 
-# Application Registry Definitions
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -34,7 +33,6 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
-# --- THE MISSING ENGINE BLOCK DEFINITION ---
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -46,7 +44,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
-        "APP_DIRS": True,  # <-- CHANGE THIS FROM False TO True
+        "APP_DIRS": True, 
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -75,7 +73,6 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Real-time communication, thread concurrency locking, and asynchronous sentiment analyzer engine metrics.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    # Let Swagger cache and pass your JWT tokens natively across endpoint paths
     "SWAGGER_UI_SETTINGS": {
         "persistAuthorization": True,
     },

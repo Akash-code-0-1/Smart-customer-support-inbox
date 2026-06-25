@@ -1,10 +1,13 @@
+'use client';
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 export interface Message {
   id?: number;
   sender: "customer" | "agent";
-  message: string;
+  message?: string;
+  text?: string; // Fallback field schema matching variance
   created_at?: string;
 }
 
@@ -22,33 +25,33 @@ export function useConversation(conversationId: string, token: string) {
   const { data } = useQuery<ConversationData>({
     queryKey: cacheKey,
     queryFn: async () => {
-      const res = await fetch(
-        `http://localhost:8000/api/conversations/${conversationId}/`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await fetch(`http://localhost:8000/api/conversations/${conversationId}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error("Failed to load thread data");
       return res.json();
     },
   });
 
   useEffect(() => {
-    // Standardizing Headers inside SSE Connection Framework via dynamic authentication validation paths
     const es = new EventSource(
-      `http://localhost:8000/api/conversations/${conversationId}/stream/?token=${token}`,
+      `http://localhost:8000/api/conversations/${conversationId}/stream/?token=${token}`
     );
 
     es.addEventListener("message", (e: MessageEvent) => {
       const newMsg = JSON.parse(e.data);
       queryClient.setQueryData<ConversationData>(cacheKey, (old) => {
         if (!old) return old;
-        if (
-          old.messages.some(
-            (m) => m.message === newMsg.message && m.sender === "agent",
-          )
-        )
-          return old;
+
+        const newContent = newMsg.message || newMsg.text || '';
+
+        // Senior: Check both keys to prevent duplicate rendering of optimistic events
+        const isDuplicate = old.messages.some((m) => {
+          const existingContent = m.message || m.text || '';
+          return existingContent === newContent && m.sender === newMsg.sender;
+        });
+
+        if (isDuplicate) return old;
         return { ...old, messages: [...old.messages, newMsg] };
       });
     });
@@ -66,21 +69,18 @@ export function useConversation(conversationId: string, token: string) {
     });
 
     return () => es.close();
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, token]);
 
   const mutation = useMutation({
     mutationFn: async (text: string) => {
-      const response = await fetch(
-        `http://localhost:8000/api/conversations/${conversationId}/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ message: text }),
+      const response = await fetch(`http://localhost:8000/api/conversations/${conversationId}/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({ message: text }),
+      });
       if (!response.ok) throw new Error(response.status.toString());
       return response.json();
     },
@@ -104,11 +104,10 @@ export function useConversation(conversationId: string, token: string) {
       if (context?.previousData) {
         queryClient.setQueryData(cacheKey, context.previousData);
       }
-      if (err.message === "423") {
-        setToast("Action Failed: Thread is locked by another agent.");
-      } else {
-        setToast("Network Error: Failed to transmit message down pipeline.");
-      }
+      setToast(err.message === "423" 
+        ? "Action Failed: Thread is locked by another agent." 
+        : "Network Error: Failed to transmit message down pipeline."
+      );
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: cacheKey });

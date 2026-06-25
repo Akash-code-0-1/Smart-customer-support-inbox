@@ -42,17 +42,7 @@ class BackendComprehensiveTestSuite(APITestCase):
         res = self.client.post(reverse('conversation-detail', kwargs={'pk': self.conversation.id}), payload)
         self.assertEqual(res.status_code, status.HTTP_423_LOCKED)
 
-def test_celery_sentiment_analyzer_task(self):
-        msg = Message.objects.create(
-            conversation=self.conversation, 
-            sender="customer", 
-            message="This service is terrible and broken"
-        )
-        analyze_sentiment_task(msg.id)
-        self.conversation.refresh_from_db()
-        
-        # Change this line from matching SentimentScore.NEGATIVE to the raw lowercase string value:
-        self.assertEqual(self.conversation.sentiment, "negative")
+    def test_celery_sentiment_analyzer_task(self):
         msg = Message.objects.create(
             conversation=self.conversation, 
             sender="customer", 

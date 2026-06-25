@@ -1,12 +1,9 @@
-# backend/seed.py
 import os
 import django
 
-# 1. Force the setting configurations to bind first
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-# 2. DO NOT MOVE THESE IMPORTS TO THE TOP. They must occur after django.setup()
 from django.contrib.auth.models import User
 from core.models import Conversation, Message
 
@@ -18,6 +15,7 @@ def seed():
             password="admin123"
         )
         print("Evaluation Admin Account Root Seed Created.")
+        
     
     c, _ = Conversation.objects.get_or_create(customer_name="John Doe", status="open")
     Message.objects.get_or_create(conversation=c, sender="customer", message="Need help with a product refund.")

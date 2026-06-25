@@ -162,7 +162,6 @@ class AISuggestionView(APIView):
     def post(self, request, pk):
         message_text = request.data.get("message", "").lower()
         
-        # --- Senior Level Expanded Keyword Matrix ---
         if any(w in message_text for w in ["hi", "hello", "hey", "greetings"]):
             suggestion = "Hello! Thank you for contacting customer support. How can I assist you with your account or order today?"
             

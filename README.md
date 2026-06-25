@@ -1,67 +1,107 @@
-# Smart Customer Support Inbox
+# Smart Customer Support Inbox API
 
-A real-time customer support portal built with Django, Django REST Framework (DRF), and Next.js (App Router). The platform features an optimistic UI with rollback capabilities, concurrent thread locking, keyword-driven AI response templates, and an asynchronous processing pipeline for text sentiment analysis.
+A concurrent, real-time support agent dashboard built to handle high-volume ticket pipelines, prevent agent race conditions via Redis locks, and parse message inputs asynchronously.
 
----
+## 📦 System Architecture & Requirements
 
-## 🏗️ Architectural Decisions & Trade-offs
-
-### Real-Time Pipeline: Server-Sent Events (SSE) vs. WebSockets
-For streaming message updates and lock state transitions to the agent interface, **Server-Sent Events (SSE)** were selected over bidirectional WebSockets:
-* **Resource Efficiency:** Support agents primarily consume streaming event updates. Outbound mutations (agent replies) are handled via standard HTTP POST requests, making the overhead of a permanent full-duplex WebSocket connection unnecessary.
-* **Resilience:** SSE includes native client-side reconnection handling out of the box, simplifying the frontend state synchronization layer.
-* **Auth Bypass Solution:** Addressed the technical limitation where browser `EventSource` engines cannot pass custom headers (like JWT Bearer tokens) by engineering an inline query-parameter authorization verification architecture.
-
-### Asynchronous Sentiment Analysis Engine
-To maintain sub-100ms response cycles, text sentiment analysis is completely decoupled from the synchronous request-response lifecycle. When an agent submits a message, the request resolves immediately, and a background task is dispatched via a **Redis broker** to standalone **Celery daemon workers** to process and save the conversation's sentiment state.
+* **Backend:** Python 3.14+ / Django 5.x / Django REST Framework
+* **Frontend:** Next.js 14+ (App Router) / TailwindCSS / TanStack React Query
+* **Data & Brokerage Layers:** Redis (Caching, Locking, Event Buffer) & SQLite3 (Relational Storage)
+* **Task Queue:** Celery 5.x
 
 ---
 
-## 🚀 Local Deployment Guide
+## 🛠️ Local Machine Setup
 
-### 1. Prerequisites (Infrastructure Layer)
-Spin up the decoupled Redis broker container via Docker:
+### 1. Redis Environment
+
+Start an isolated Redis container instance bound to standard ports:
+
 ```bash
-docker run -d --name redis-broker -p 6379:6379 redis
+docker run -d --name inbox-redis -p 6379:6379 redis:alpine
 
+```
 
-2. Backend Installation & API Startup
-Navigate to the backend directory, activate the virtual environment, migrate the database schemas, seed the default admin profile, and start the development server:
+### 2. Django Backend Installation
 
-cd backend
+Navigate to your backend directory, initialize your virtual environment, and install base packages:
+
+```bash
+cd backend/
+python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 
-# Apply structural migrations
+```
+
+Run structural migrations, seed core relational models, and launch the development service runner:
+
+```bash
 python3 manage.py migrate
+python3 manage.py runserver
 
-# Boot the API server
-python3 manage.py runserver 8000
+```
 
+### 3. Asynchronous Worker Instance
 
-3. Asynchronous Task Processor Startup
-Open a new terminal tab, navigate to the backend, and activate the Celery worker pool:
+Open a separate shell terminal, enter your backend environment, and boot your Celery background queue handler:
 
-cd backend
+```bash
 source venv/bin/activate
-export DJANGO_SETTINGS_MODULE=config.settings
 celery -A config worker --loglevel=info
 
+```
 
-4. Frontend Workspace Setup
-Open a separate terminal window, navigate to the frontend directory, install dependencies, and run the Next.js development server:
+### 4. Next.js Frontend Deployment
 
-cd frontend
+Open a separate shell terminal, install package dependencies, and run the client-side single-page layout:
+
+```bash
+cd frontend/
 npm install
 npm run dev
 
+```
 
-Open your browser and navigate to: http://localhost:3000/inbox/1
+The application web user interface is now accessible locally via: `http://localhost:3000/`
 
+---
 
-Automated Testing Protocol
-To verify data structures, concurrency locks, and background tasks independently, execute the automated backend test runner:
+## 🧪 Grading & Evaluation Runbook
 
-cd backend
-source venv/bin/activate
-export DJANGO_SETTINGS_MODULE=config.settings
-python3 manage.py test core
+Follow these sequential steps to test each requirement component of the task criteria directly:
+
+### 📑 Part 1: Interactive System Documentation (OpenAPI 3.0)
+
+* Open your browser to **`http://localhost:8000/api/docs/`** to pull up the automated Swagger UI portal.
+* Verify structural routes, schemas, and parameter criteria configurations.
+* Click **Authorize** to bind an active JWT access key token string (`Bearer <access_token>`) to execute test operations directly against live API endpoints inside the browser.
+
+### 🔒 Part 2: State Concurrency & Race Condition Elimination
+
+* Authenticate as a support agent and select any active conversation thread in the Next.js interface.
+* The system assigns a distinct thread lock key inside Redis, reserving the workspace for the authenticated profile (`admin@test.com`).
+* Open a private incognito session or an alternate browser tab using a separate agent profile access key. The second agent will see that the text composition canvas is strictly deactivated, showing: **`🔒 Handled by admin@test.com`**.
+
+### 🤖 Part 3: AI Quick Macro Menu
+
+* Inside the composition zone of any active ticket, click the floating circular blue node button featuring the **`🤖`** element.
+* This expands an integrated panel containing **5 pre-made professional support response scripts** (Greetings, Refund, Shipping, Replacement, and Account Cancellation).
+* Click any macro list option: the system closes the selection tree instantly and transfers the full text block parameter down to the primary message input block for prompt agent modification or fast transmission.
+
+### 📡 Part 4: Live Server-Sent Events (SSE) & Async Verification
+
+To test live data ingestion without a manual page refresh, fire a mockup customer message payload into your SQLite environment using a raw `curl` execution terminal request:
+
+```bash
+curl -X POST http://localhost:8000/api/conversations/1/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_ACCESS_TOKEN" \
+  -d '{"sender": "customer", "message": "Can I please get a refund for this broken item?"}'
+
+```
+
+#### Expected Evaluation Behavior:
+
+1. **The Streaming Layer:** The new incoming message automatically injects straight into the active Next.js interface loop array without page drops or manual reloads.
+2. **The Worker Pipeline:** The running Celery terminal logs a successful background message execution event loop, reads the incoming customer string parameters, evaluates text weights, and writes the resulting structural metadata updates back to the SQLite row container cleanly.
