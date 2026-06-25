@@ -77,8 +77,8 @@ Follow these sequential steps to test each requirement component of the task cri
 * Verify structural routes, schemas, and parameter criteria configurations.
 * Click **Authorize** to bind an active JWT access key token string (`Bearer <access_token>`) to execute test operations directly against live API endpoints inside the browser.
 
-#### 🖼️ Working Proof (Swagger Dashboard View)
-![OpenAPI Swagger Documentation Interface](screenshots/swagger-docs.png)
+#### 🖼️ Swagger Dashboard View
+![OpenAPI Swagger Documentation Interface](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/apiDoc.png?raw=true)
 ---
 
 ### State Concurrency & Race Condition Elimination
@@ -87,7 +87,7 @@ Follow these sequential steps to test each requirement component of the task cri
 * The system assigns a distinct thread lock key inside Redis, reserving the workspace for the authenticated profile (`admin@test.com`).
 * Open a private incognito session or an alternate browser tab using a separate agent profile access key. The second agent will see that the text composition canvas is strictly deactivated, showing: **`🔒 Handled by admin@test.com`**.
 
-#### 🖼️ Working Proof (Session Locking Banner View)
+#### 🖼️ Session Locking Banner View
 
 ![Active Multi-Agent Concurrency Session Lock](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/ui.png?raw=true)
 
@@ -99,7 +99,7 @@ Follow these sequential steps to test each requirement component of the task cri
 * This expands an integrated panel containing **5 pre-made professional support response scripts** (Greetings, Refund, Shipping, Replacement, and Account Cancellation).
 * Click any macro list option: the system closes the selection tree instantly and transfers the full text block parameter down to the primary message input block for prompt agent modification or fast transmission.
 
-#### 🖼️ Working Proof (AI Macros Action Interface)
+#### 🖼️ Macros Action Interface
 ![AI Floating Macro Selection Speed Dial Menu](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/tmsg.png?raw=true)
 ---
 
