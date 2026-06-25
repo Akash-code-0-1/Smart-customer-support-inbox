@@ -1,4 +1,4 @@
-# Smart Customer Support Inbox API
+# Smart Customer Support Inbox
 
 A concurrent, real-time support agent dashboard built to handle high-volume ticket pipelines, prevent agent race conditions via Redis locks, and parse message inputs asynchronously.
 
