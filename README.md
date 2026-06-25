@@ -2,6 +2,8 @@
 
 A concurrent, real-time support agent dashboard built to handle high-volume ticket pipelines, prevent agent race conditions via Redis locks, and parse message inputs asynchronously.
 
+![](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/tmsg.png?raw=true)
+
 ## 📦 System Architecture & Requirements
 
 * **Backend:** Python / Django 5.x / Django REST Framework
