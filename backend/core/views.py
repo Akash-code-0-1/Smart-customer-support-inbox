@@ -1,86 +1,7 @@
-# from django.core.cache import cache
-# from django.db import transaction
-# from django.shortcuts import get_object_or_404
-# from rest_framework import generics, status
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.pagination import PageNumberPagination
-# from .models import Conversation, Message
-# from .serializers import ConversationSerializer, MessageSerializer
-# from .tasks import analyze_sentiment_task
-# from rest_framework.permissions import AllowAny
-
-# LOCK_EXPIRY = 300  # 5 minutes
-
-# class StandardPagination(PageNumberPagination):
-#     page_size = 15
-#     page_size_query_param = "page_size"
-
-# class ConversationListView(generics.ListAPIView):
-#     serializer_class = ConversationSerializer
-#     pagination_class = StandardPagination
-#     permission_classes = [AllowAny]  # <-- Add this explicit line
-    
-#     def get_queryset(self):
-#         queryset = Conversation.objects.all()
-#         status_param = self.request.query_params.get("status")
-#         search_param = self.request.query_params.get("search")
-#         if status_param:
-#             queryset = queryset.filter(status=status_param)
-#         if search_param:
-#             queryset = queryset.filter(customer_name__icontains=search_param)
-#         return queryset
-
-# class ConversationDetailView(APIView):
-#     permission_classes = [AllowAny]  # <-- Add this explicit line
-
-#     def get(self, request, pk):
-#         conversation = get_object_or_404(Conversation, pk=pk)
-#         messages = conversation.messages.all()
-#         serializer = MessageSerializer(messages, many=True)
-        
-#         return Response({
-#             "lock_holder": "admin@test.com",
-#             "is_locked_by_me": True,
-#             "messages": serializer.data
-#         })
-
-#     def post(self, request, pk):
-#         conversation = get_object_or_404(Conversation, pk=pk)
-#         serializer = MessageSerializer(data=request.data)
-#         if serializer.is_valid():
-#             # Save message objects with standard fallback agent context mapping
-#             serializer.save(conversation=conversation, sender="agent")
-            
-#             # Real-time event simulation trigger
-#             channel_key = f"sse:channel:{pk}"
-#             events = cache.get(channel_key, [])
-#             events.append({"type": "message", "data": serializer.data})
-#             cache.set(channel_key, events, timeout=60)
-            
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# class AISuggestionView(APIView):
-#     def post(self, request, pk):
-#         message_text = request.data.get("message", "").lower()
-#         if "refund" in message_text:
-#             suggestion = "We are truly sorry to hear that you want a refund. I can assist you with processing that immediately if your order falls within our 30-day window."
-#         elif "broken" in message_text or "damaged" in message_text:
-#             suggestion = "I apologize for the damaged item. Could you please upload a clear picture so I can dispatch a replacement unit right away?"
-#         elif "delay" in message_text or "where is my order" in message_text:
-#             suggestion = "Let me look up your tracking sequence. Please provide your Order Confirmation Number so I can locate your parcel."
-#         else:
-#             suggestion = "Thank you for contacting customer support. How can I assist you with your inquiries today?"
-            
-#         return Response({"suggestion": suggestion}, status=status.HTTP_200_OK)
-
-
-# backend/core/views.py
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 from .models import Conversation, Message
@@ -91,21 +12,32 @@ from .tasks import analyze_sentiment_task
 LOCK_EXPIRY = 300  # 5 Minutes in seconds
 
 class ConversationListView(generics.ListAPIView):
+    """
+    Exposes paginated ticket queues with case-insensitive search 
+    and direct relational key filtering capabilities.
+    """
     serializer_class = ConversationSerializer
     pagination_class = StandardPagination
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = Conversation.objects.all()
+        queryset = Conversation.objects.all().order_by('-updated_at')
         status_param = self.request.query_params.get("status")
         search_param = self.request.query_params.get("search")
+        
         if status_param:
             queryset = queryset.filter(status=status_param)
         if search_param:
             queryset = queryset.filter(customer_name__icontains=search_param)
+            
         return queryset
 
+
 class ConversationDetailView(APIView):
+    """
+    Manages state concurrency allocation locking, historical thread records,
+    and handles dynamic incoming multi-sender payload ingest streams.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -114,19 +46,20 @@ class ConversationDetailView(APIView):
         current_lock_user = cache.get(lock_key)
         user_email = request.user.email
         
-        # Concurrency Lock Logic
+        # Concurrency Allocation Lock Logic
         if current_lock_user is None:
             cache.set(lock_key, user_email, timeout=LOCK_EXPIRY)
             current_lock_user = user_email
         elif current_lock_user == user_email:
             cache.touch(lock_key, timeout=LOCK_EXPIRY)
             
-        messages = conversation.messages.all()
+        messages = conversation.messages.all().order_by('created_at')
         serializer = MessageSerializer(messages, many=True)
         
         return Response({
             "lock_holder": current_lock_user,
             "is_locked_by_me": current_lock_user == user_email,
+            "sentiment": conversation.sentiment,  # ✨ Senior Fix: Returns the live data context to Next.js
             "messages": serializer.data
         })
 
@@ -135,32 +68,56 @@ class ConversationDetailView(APIView):
         lock_key = f"lock:conversation:{pk}"
         current_lock_user = cache.get(lock_key)
         
-        # Block unauthorized agent mutation modifications
-        if current_lock_user and current_lock_user != request.user.email:
-            return Response({"error": f"Thread write locked by agent: {current_lock_user}"}, status=status.HTTP_423_LOCKED)
+        # Extract sender from payload; default cleanly to agent if absent
+        request_sender = request.data.get("sender", "agent")
+        
+        # Senior Validation: Block unauthorized agents, but bypass for customer simulation inputs
+        if request_sender != "customer" and current_lock_user and current_lock_user != request.user.email:
+            return Response(
+                {"error": f"Thread write locked by agent: {current_lock_user}"}, 
+                status=status.HTTP_423_LOCKED
+            )
             
-        serializer = MessageSerializer(data=request.data)
+        # Support both 'text' and 'message' property lookups flexibly
+        payload_data = request.data.copy()
+        if "text" not in payload_data and "message" in payload_data:
+            payload_data["text"] = payload_data["message"]
+            
+        serializer = MessageSerializer(data=payload_data)
         if serializer.is_valid():
-            message_obj = serializer.save(conversation=conversation, sender="agent")
+            # Dynamically apply sender designation context instead of a hardcoded string
+            message_obj = serializer.save(
+                conversation=conversation, 
+                sender=request_sender
+            )
             
-            # 1. Trigger background job processing task for Sentiment Analysis
+            # Re-serialize model layout instance to catch auto-generated fields (id, created_at)
+            fresh_serialized_data = MessageSerializer(message_obj).data
+            
+            # 1. Pipeline background sentiment analysis job assignment to Celery
             analyze_sentiment_task.delay(message_obj.id)
             
-            # 2. Push message to real-time SSE event buffer channel
+            # 2. Append payload out to the live Server-Sent Events (SSE) channel queue buffer
             channel_key = f"sse:channel:{pk}"
             events = cache.get(channel_key, [])
-            events.append({"type": "message", "data": serializer.data})
+            events.append({"type": "message", "data": fresh_serialized_data})
             cache.set(channel_key, events, timeout=60)
             
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(fresh_serialized_data, status=status.HTTP_201_CREATED)
+            
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class AISuggestionView(APIView):
+    """
+    Exposes static rules token matrix matching to provide algorithmic recommendation macros.
+    """
     permission_classes = [IsAuthenticated]
 
-    # Indented by 4 spaces to live inside the class block context
     def post(self, request, pk):
-        message_text = request.data.get("message", "").lower()
+        # Handle field variance gracefully across incoming payload schemas
+        raw_text = request.data.get("message") or request.data.get("text") or ""
+        message_text = raw_text.lower()
         
         if any(w in message_text for w in ["hi", "hello", "hey", "greetings"]):
             suggestion = "Hello! Thank you for contacting customer support. How can I assist you with your account or order today?"
