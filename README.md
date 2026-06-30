@@ -116,7 +116,6 @@ curl -X POST http://localhost:8000/api/conversations/1/ \
   -d '{"sender": "customer", "message": "Can I please get a refund for this broken item?"}'
 
 ```
-
 ![](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/terminal-req.png?raw=true)
 
 ![](https://github.com/Akash-code-0-1/Smart-customer-support-inbox/blob/main/screenshots/req-output.png?raw=true)
